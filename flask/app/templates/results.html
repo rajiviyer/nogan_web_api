@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+    <!-- Display the success message if it exists -->
+    {% if success_message %}
+    <div class="alert alert-success">
+        {{ success_message | safe }}
+    </div>
+    {% endif %}
+
+    <!-- Display the error message if it exists -->
+    {% if error_message %}
+    <div class="alert alert-danger">
+        {{ error_message }}
+    </div>
+    {% endif %}
+{% endblock %}    
+    

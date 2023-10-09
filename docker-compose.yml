@@ -4,6 +4,8 @@ services:
   web:
     container_name: nogan_web_app
     build: ./flask
+    volumes:
+      - ./flask:/app
     ports:
       - 5000:5000
 
