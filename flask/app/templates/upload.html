@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}
+    Home
+{% endblock %}
+{% block content %}
+    <div>
+        <form method="POST" action="/process" enctype="multipart/form-data">
+            <label name = "inputFile" for="file">Select a file to Upload</label><br>
+            <input type="file" onchange="checkFileSize()" id = "fileID" name="file" accept=".csv, .txt, .xlsx" required><br><br>
+            <!-- <div id="customAlert" class="hidden">
+                <div id="customAlertContent">
+                    <span id="customAlertMessage"></span>
+                    <button onclick="closeCustomAlert()">OK</button>
+                </div>
+            </div> -->
+            <label name = "fileTypeLabel" for="fileType">File Type:</label>
+            <select name="fileType" onchange="hideTextInput(this.value);" required>
+                <option value="csv">CSV</option>
+                <option value="excel">Excel</option>
+                <option value="text">Text</option>      
+            </select>&nbsp;
+            <label name = "delimLabel" for="delimiter">Delimiter:</label>
+            <input type="text" name="delimiter" value="," required><br><br><br>
+            <input type="submit" name="uploadButton" value="Upload">
+        </form>    
+    </div>
+    <script src="../static/js/upload.js"></script> 
+{% endblock %}
