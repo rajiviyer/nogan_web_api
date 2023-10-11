@@ -130,9 +130,20 @@ function generateJSON() {
   document.getElementById('stretchValText').value = JSON.stringify(jsonStretchValData, null, 2);
 }
 
+// function clearMessages() {
+//   document.getElementById('success').classList.add('hidden');     
+//   document.getElementById('successDiv').classList.add('hidden');
+  
+//   document.getElementById('error').classList.add('hidden');     
+//   document.getElementById('errorDiv').classList.add('hidden');  
+// }
 
 document.querySelector('form').addEventListener('submit', function(e) {
   e.preventDefault();
+  document.getElementById('success').classList.add('hidden');
+  document.getElementById('error').classList.add('hidden');
+  document.getElementById('successDiv').classList.add('hidden');
+  document.getElementById('errorDiv').classList.add('hidden');
   fetch('/generate', {
       method: 'POST',
       body: new FormData(e.target)

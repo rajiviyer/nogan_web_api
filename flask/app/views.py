@@ -11,13 +11,55 @@ import time
 import re
 import json
 
+def validate_bins_stretch(form_element_type : str, 
+                          form_element_checked : str, 
+                          form_text_json: str,
+                          col_len : int):
+    # print(f"form_element_status : {form_element_status}")
+    # print(f"Form Text Json: {form_text_json}")
+    # print(f"Column Length : {col_len}")
+    if form_element_checked is None:
+        if form_element_type == "bins":
+            value_list = [100] * col_len
+        elif form_element_type == "stretch_type":
+            value_list = ["Uniform"] * col_len
+        else:
+            value_list = [1.0] * col_len
+
+        return value_list, "Success"
+    else:
+        if form_text_json:
+            try:
+                form_element_json = json.loads(form_text_json)
+                value_list = [form_element_json[key] 
+                              for key in form_element_json]
+                
+                if not form_element_json:
+                    return None, "Error"
+                
+                # print(f"Value List: {value_list}")
+                if (form_element_type == "bins") and (min(value_list) <= 0):
+                    return None, "Error"
+                    
+                if (form_element_type == "stretch_type") and (len(set(value_list) - app.config['STRETCH_TYPE']) > 0):
+                    return None, "Error"
+                
+                # print(f"{form_element_type}:{value_list}")    
+                return value_list, "Success"
+            except Exception as e:
+                # print(f"Function Error: {str(e)}")                 
+                return None, "Error"
+        else:
+            return None, "Error"
+                    
+                                
 @app.route('/')
 def index():
     return render_template('upload.html')
 
 @app.route('/process', methods=['POST'])
 def process():
-    DATA_DIR = "./app/data"
+    DATA_DIR = app.config['RESULT_DIR']
     try:
         # Get user inputs from the form
         file = request.files['file']
@@ -37,7 +79,7 @@ def process():
             
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
-    DATA_DIR = "./app/data"
+    DATA_DIR = app.config['RESULT_DIR']
     if request.method == 'GET':
         DEBUG_LOCATION="Reading Data"
         try:
@@ -60,7 +102,6 @@ def generate():
             # Get column names for category selection
             DEBUG_STEP="Getting Columns List from Data"
             columns = df.columns.tolist()
-            print(f"Columns before going to Generate Page: {columns}")
             
             if re.search(r'[^a-zA-Z0-9_]', "".join(columns)):
                 raise ValueError("Special Characters or Space present in Column Names. Please remove them & try again")
@@ -87,8 +128,6 @@ def generate():
             file_name = request.form["fileName"]
             file_type = request.form["fileType"]            
             delimiter = request.form["delimiter"]
-
-            print(f"File Name in Post: {file_name}")
             
             # Set Random Seed
             seed = np.random.randint(low=1, high=9999999, size=1)
@@ -112,6 +151,7 @@ def generate():
                 val_data = orig_data.drop(train_data.index)
             
                 if category_columns:
+                    DEBUG_STEP = "wrapping Category Columns"
                     train_data, _ , _ = \
                             wrap_category_columns(train_data,
                                                   category_columns)                
@@ -120,33 +160,69 @@ def generate():
                                                   category_columns)                               
                 # Train NoGAN
                 DEBUG_STEP="getting Bins"
-                bins_json = request.form["binsText"]               
-                if bins_json:
-                    bins_json = json.loads(bins_json)
-                    bins = [bins_json[key] for key in bins_json]
-                else:
-                    bins = [100] * len(train_data.columns)
-                print(f"bins json: {bins_json}") 
+                bins, bins_error_status = \
+                        validate_bins_stretch("bins",
+                                            request.form.get("bins"),
+                                            request.form["binsText"],
+                                            len(train_data.columns)
+                                            )
+                if bins_error_status == "Error":
+                    raise ValueError("Bins Error")
+                
+                print(f"Bins: {bins}")
+                
+                # bins_selected = request.form["bins"]
+                # print(f"Bins Selected: {bins_selected}")
+                # bins_json = request.form["binsText"]         
+                # if bins_json:
+                #     bins_json = json.loads(bins_json)
+                #     bins = [bins_json[key] for key in bins_json]
+                # else:
+                #     bins = [100] * len(train_data.columns)
+                # print(f"bins json: {bins_json}")
+                # if min(bins) <=0:
+                #     raise ValueError("Bins cannot have Zero or Negative values")
                 
                 DEBUG_STEP="getting Stretch Type"
-                stretch_type_json = request.form["StretchTypeText"]
-                if stretch_type_json:
-                    stretch_type_json = json.loads(stretch_type_json)
-                    stretch_type = \
-                        [stretch_type_json[key] for key in stretch_type_json]
-                else:
-                    stretch_type = ["Uniform"] * len(train_data.columns)
-                print(f"stretch type json: {stretch_type_json}")
                 
+                # try:
+                #     stype = request.form.get('stretchType')
+                #     print(f"Stretch Type Checked: {stype}")
+                # except Exception as e:
+                #     print(f"Stype Exception: {str(e)}")
+                    
+                stretch_type, stretch_type_error_status = \
+                        validate_bins_stretch("stretch_type",
+                                              request.form.get("stretchType"),
+                                              request.form["StretchTypeText"],
+                                              len(train_data.columns)
+                                              )
+                if stretch_type_error_status == "Error":
+                    raise ValueError("Stretch Type Error")
+                
+                print(f"Stretch Type: {stretch_type}")
+                # stretch_type_json = request.form["StretchTypeText"]
+                # if stretch_type_json:
+                #     stretch_type_json = json.loads(stretch_type_json)
+                #     stretch_type = \
+                #         [stretch_type_json[key] for key in stretch_type_json]
+                # else:
+                #     stretch_type = ["Uniform"] * len(train_data.columns)
+                # print(f"stretch type json: {stretch_type_json}")
+                # if len(set(stretch_type) - app.config['STRETCH_TYPE']) > 0:
+                #     raise ValueError(f"Stretch Type can have only {list(app.config['STRETCH_TYPE'])} entries")
+
                 DEBUG_STEP="getting Stretch Values"
-                stretch_val_json = request.form["stretchValText"]
-                if stretch_val_json:
-                    stretch_val_json = json.loads(stretch_val_json)
-                    stretch = \
-                        [stretch_val_json[key] for key in stretch_val_json]
-                else:
-                    stretch = [1.0] * len(train_data.columns)
-                print(f"stretch val json: {stretch_val_json}")
+                stretch, stretch_error_status = \
+                        validate_bins_stretch("stretch",
+                                              request.form.get("stretchVal"),
+                                              request.form["stretchValText"],
+                                              len(train_data.columns)
+                                              )
+                if stretch_error_status == "Error":
+                    raise ValueError("Stretch Values Error")  
+                
+                print(f"stretch val: {stretch}")
                 
                 DEBUG_STEP = "instantiating NoGAN Model"
                 nogan = NoGANSynth(train_data,
@@ -195,45 +271,54 @@ def generate():
                 DEBUG_LOCATION = "Data Generation"
                 num_rows = int(request.form['genNumRows'])
                 print(f"Num Rows: {num_rows}")
-                try:             
-                    ks_stat_selected = request.form['genKSStats']
-                except Exception as e:
-                    ks_stat_selected = False
-                print(f"KS Selected Value:{ks_stat_selected}")
+
                 if category_columns:
-                    DEBUG_STEP = "wrapping category columns"
+                    DEBUG_STEP = "wrapping category columns"                   
                     wrapped_data, idx_to_key, _ = \
                             wrap_category_columns(orig_data,
                                                 category_columns)
                     orig_data = wrapped_data
                 
                 # Train NoGAN
-                bins_json = request.form["binsText"]
+                # print(f"Bins Checked: {request.form['bins']}")
+                # print(f"Stretch Type Checked: {request.form['stretchType']}")
+                # print(f"Stretch Checked: {request.form['stretchVal']}")
+                   
+                DEBUG_STEP="getting Bins"
+                bins, bins_error_status = \
+                        validate_bins_stretch("bins",
+                                              request.form.get("bins"),
+                                              request.form["binsText"],
+                                              len(orig_data.columns)
+                                              )
+                if bins_error_status == "Error":
+                    raise ValueError("Bins Error")
                 
-                DEBUG_STEP = "getting Bins"
-                if bins_json:
-                    bins_json = json.loads(bins_json)
-                    bins = [bins_json[key] for key in bins_json]
-                else:
-                    bins = [100] * len(train_data.columns)
+                print(f"Bins: {bins}")
                 
-                DEBUG_STEP = "getting Stretch Type"
-                stretch_type_json = request.form["StretchTypeText"]
-                if stretch_type_json:
-                    stretch_type_json = json.loads(stretch_type_json)
-                    stretch_type = \
-                        [stretch_type_json[key] for key in stretch_type_json]
-                else:
-                    stretch_type = ["Uniform"] * len(train_data.columns)
+                DEBUG_STEP="getting Stretch Type"
+                stretch_type, stretch_type_error_status = \
+                        validate_bins_stretch("stretch_type",
+                                              request.form.get("stretchType"),
+                                              request.form["StretchTypeText"],
+                                              len(orig_data.columns)
+                                              )
+                if stretch_type_error_status == "Error":
+                    raise ValueError("Stretch Type Error")
                 
-                DEBUG_STEP = "getting Stretch Values"
-                stretch_val_json = request.form["stretchValText"]
-                if stretch_val_json:
-                    stretch_val_json = json.loads(stretch_val_json)
-                    stretch = \
-                        [stretch_val_json[key] for key in stretch_val_json]
-                else:
-                    stretch = [1.0] * len(train_data.columns)
+                print(f"Stretch Type: {stretch_type}")
+
+                DEBUG_STEP="getting Stretch Values"
+                stretch, stretch_error_status = \
+                        validate_bins_stretch("stretch",
+                                              request.form.get("stretchVal"),
+                                              request.form["stretchValText"],
+                                              len(orig_data.columns)
+                                              )
+                if stretch_error_status == "Error":
+                    raise ValueError("Stretch Values Error")  
+                
+                print(f"stretch val: {stretch}")
                 
                 DEBUG_STEP = "instantiating NoGAN Model"
                 nogan = NoGANSynth(orig_data,
@@ -247,8 +332,11 @@ def generate():
                     nogan.generate_synthetic_data(no_of_rows = num_rows,
                                                   stretch_type = stretch_type,
                                                   stretch = stretch)
+
+                ks_stat_selected = request.form.get('genKSStats')
+                print(f"KS Selected Value:{ks_stat_selected}")
                 
-                if ks_stat_selected:
+                if ks_stat_selected is not None:
                     num_nodes = int(request.form['genNumNodes'])
                     
                     DEBUG_STEP="calculating ECDF for Original and Synthetic Data"
@@ -261,7 +349,7 @@ def generate():
                                                   random_seed=seed)
                     
                     DEBUG_STEP="calculating KS Statistic for Original and Synthetic Data"
-                    ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)            
+                    ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)
 
                 if category_columns:
                     DEBUG_STEP="unwrapping Category Columns"
@@ -275,12 +363,11 @@ def generate():
                 # Generate a unique CSV file name
                 generated_data = generated_data[features]
                 timestamp = int(time.time())
-                print(f"Filname type: {type(file_name)}")
                 csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
                 generated_data.to_csv(os.path.join(DATA_DIR, csv_filename), index=False)
                 file_location = f"/download/{csv_filename}"
 
-                if ks_stat_selected:
+                if ks_stat_selected is not None:
                     success_message = f"Synthetic Data file {csv_filename} generated successfully.\nKS Statistic is: {ks_stat:0.4f}"
                 else:
                     success_message = f'Synthetic Data file {csv_filename} generated successfully.'                    
@@ -292,6 +379,13 @@ def generate():
         except Exception as e:
             if DEBUG_STEP.lower() in ["getting bins", "getting stretch type", "getting stretch values"]:
                 error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): Please check the json format'
+
+                if DEBUG_STEP.lower() in ["getting bins"]:
+                    error_message = error_message + "." + " Also Bin values should not be negative or zero"
+                    
+                if DEBUG_STEP.lower() in ["getting stretch type"]:
+                    error_message = error_message + "." + f" Also Stretch type should have only {list(app.config['STRETCH_TYPE'])} entries"
+                    
             else:                
                 error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
             
@@ -301,6 +395,6 @@ def generate():
 
 @app.route('/download/<filename>')
 def download(filename):
-    DATA_DIR="./app/data"
-    # Serve the file for download from the 'data' directory
-    return send_from_directory(DATA_DIR, filename, as_attachment=True)
+    return send_from_directory(app.config['RESULT_DIR'],
+                               filename, 
+                               as_attachment=True)

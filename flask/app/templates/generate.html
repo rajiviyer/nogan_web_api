@@ -17,15 +17,15 @@
                 </select>
                 <input type="button" id="confirmColSel" name="confirmColSel" value="Confirm Selection" onclick="generateJSON()">
                 <br><br>
-                <input type="checkbox" id="bins" name="bins" value = "false" onchange="displayBins()">
+                <input type="checkbox" id="bins" name="bins"  onchange="displayBins()">
                 <label for="bins" name="binsLabel">Custom Bins</label>
                 <div id="divBinText" name="divBinText" class="textarea hidden"><textarea id="binsText" name="binsText"></textarea></div>              
                 <br>
-                <input type="checkbox" id="stretchType" name="stretchType" value = "false" onchange="displayStretchType()">
+                <input type="checkbox" id="stretchType" name="stretchType" onchange="displayStretchType()">
                 <label for="stretchType" name="stretchTypeLabel">Custom Stretch Types</label>
                 <div id="divStretchTypeText" name="divStretchTypeText" class="textarea hidden"><textarea id="StretchTypeText" name="StretchTypeText"></textarea></div>
                 <br>
-                <input type="checkbox" id="stretchVal" name="stretchVal" value = "false" onchange="displayStretchVal()">
+                <input type="checkbox" id="stretchVal" name="stretchVal" onchange="displayStretchVal()">
                 <label for="stretchVal" name="stretchValLabel">Custom Stretch Values</label>
                 <div id="divStretchValText" name="divStretchValText" class="textarea hidden"><textarea id="stretchValText" name="stretchValText"></textarea></div>
                 <br>                                   
@@ -39,7 +39,7 @@
                 <label for="valNumNodes" name="valNumNodesLabel" style="display: none">Number of Nodes:</label>
                 <input type="number" id="valNumNodes" name="valNumNodes" value="1000" min="1" max="10000" style="display: none">        
                 <br>
-                <input type="checkbox" id="genKSStats" name="genKSStats" value = "false" onchange="displayGenNumNodes()">
+                <input type="checkbox" id="genKSStats" name="genKSStats" onchange="displayGenNumNodes()">
                 <label for="kSStats" name="genKSStatsLabel">KS Stats</label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                 <label for="genNumNodes" name="genNumNodesLabel" style="display: none" >Number of Nodes:</label>
                 <input type="number" id="genNumNodes" name="genNumNodes" value="1000" min="1" max="10000" style="display: none; width: 25%"><br>
