@@ -40,13 +40,17 @@
                 <input type="number" id="valNumNodes" name="valNumNodes" value="1000" min="1" max="10000" style="display: none">        
                 <br>
                 <input type="checkbox" id="genKSStats" name="genKSStats" onchange="displayGenNumNodes()">
-                <label for="kSStats" name="genKSStatsLabel">KS Stats</label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <label for="kSStats" name="genKSStatsLabel">KS Stats</label>&nbsp;&nbsp;&nbsp;&nbsp;
                 <label for="genNumNodes" name="genNumNodesLabel" style="display: none" >Number of Nodes:</label>
                 <input type="number" id="genNumNodes" name="genNumNodes" value="1000" min="1" max="10000" style="display: none; width: 25%"><br>
                 <input type="submit" value="Generate">        
             </form>
         </div>
         <div class="right-section">
+            <div id="progress" name="progress" class="progress hidden" role="progressbar" style="height:30px">
+                <div class="progress-bar progress-bar-striped progress-bar-animated active bg-info" style="width: 100%; font-size: xx-medium">Calculating KS Statistic
+                </div>
+            </div>
             <div id="successDiv" class="alert alert-success hidden">
                 <p><span id="success" class="hidden"></span></p>
                 <p><a id="fileLocation" class="hidden" href="">Download</a></p>

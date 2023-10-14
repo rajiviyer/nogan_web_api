@@ -144,6 +144,9 @@ document.querySelector('form').addEventListener('submit', function(e) {
   document.getElementById('error').classList.add('hidden');
   document.getElementById('successDiv').classList.add('hidden');
   document.getElementById('errorDiv').classList.add('hidden');
+  document.getElementById('success').textContent = '';
+  document.getElementById('error').textContent = '';
+  document.getElementById('progress').classList.remove('hidden');  
   fetch('/generate', {
       method: 'POST',
       body: new FormData(e.target)
@@ -151,23 +154,25 @@ document.querySelector('form').addEventListener('submit', function(e) {
   .then(response => response.json())
   .then(data => {
       if (data.success_message && data.success_message.trim() != '') {
+        document.getElementById('progress').classList.add('hidden');        
         document.getElementById('successDiv').classList.remove('hidden');
         document.getElementById('success').classList.remove('hidden');
         document.getElementById('success').textContent = data.success_message;
       }
       else {
         document.getElementById('success').classList.add('hidden');     
-        document.getElementById('successDiv').classList.add('hidden');
+        document.getElementById('successDiv').classList.add('hidden');     
       }
       
       if (data.error_message && data.error_message.trim() != '') {
+        document.getElementById('progress').classList.add('hidden');         
         document.getElementById('errorDiv').classList.remove('hidden');
         document.getElementById('error').classList.remove('hidden');
         document.getElementById('error').textContent = data.error_message;
       }
       else {
         document.getElementById('error').classList.add('hidden');
-        document.getElementById('errorDiv').classList.add('hidden');             
+        document.getElementById('errorDiv').classList.add('hidden');
       }      
   
       if (data.file_location && data.file_location.trim() != '') {
@@ -175,7 +180,14 @@ document.querySelector('form').addEventListener('submit', function(e) {
         document.getElementById('fileLocation').href = data.file_location;
       }
       else {
-        document.getElementById('fileLocation').classList.add('hidden');        
-      }        
+        document.getElementById('fileLocation').classList.add('hidden');      
+      }
+      
+      // if (data.success_message.trim() != '' | data.error_message.trim() != '') {
+      //   document.getElementById('progress').classList.add('hidden');
+      // }
+      // else {
+      //   document.getElementById('progress').classList.remove('hidden');        
+      // }
   });
 });

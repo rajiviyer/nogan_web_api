@@ -170,27 +170,9 @@ def generate():
                     raise ValueError("Bins Error")
                 
                 print(f"Bins: {bins}")
-                
-                # bins_selected = request.form["bins"]
-                # print(f"Bins Selected: {bins_selected}")
-                # bins_json = request.form["binsText"]         
-                # if bins_json:
-                #     bins_json = json.loads(bins_json)
-                #     bins = [bins_json[key] for key in bins_json]
-                # else:
-                #     bins = [100] * len(train_data.columns)
-                # print(f"bins json: {bins_json}")
-                # if min(bins) <=0:
-                #     raise ValueError("Bins cannot have Zero or Negative values")
-                
+                                
                 DEBUG_STEP="getting Stretch Type"
-                
-                # try:
-                #     stype = request.form.get('stretchType')
-                #     print(f"Stretch Type Checked: {stype}")
-                # except Exception as e:
-                #     print(f"Stype Exception: {str(e)}")
-                    
+                                    
                 stretch_type, stretch_type_error_status = \
                         validate_bins_stretch("stretch_type",
                                               request.form.get("stretchType"),
@@ -201,17 +183,7 @@ def generate():
                     raise ValueError("Stretch Type Error")
                 
                 print(f"Stretch Type: {stretch_type}")
-                # stretch_type_json = request.form["StretchTypeText"]
-                # if stretch_type_json:
-                #     stretch_type_json = json.loads(stretch_type_json)
-                #     stretch_type = \
-                #         [stretch_type_json[key] for key in stretch_type_json]
-                # else:
-                #     stretch_type = ["Uniform"] * len(train_data.columns)
-                # print(f"stretch type json: {stretch_type_json}")
-                # if len(set(stretch_type) - app.config['STRETCH_TYPE']) > 0:
-                #     raise ValueError(f"Stretch Type can have only {list(app.config['STRETCH_TYPE'])} entries")
-
+                
                 DEBUG_STEP="getting Stretch Values"
                 stretch, stretch_error_status = \
                         validate_bins_stretch("stretch",
@@ -261,7 +233,7 @@ def generate():
                 
                 DEBUG_STEP="calculating KS Statistic for Validation and Training Data"
                 base_ks_stat = ks_statistic(ecdf_val2, ecdf_train)
-                success_message = f"KS Statistic is: {ks_stat:0.4f}\nBase KS Statistic is: {base_ks_stat:0.4f}"
+                success_message = f"KS Statistic is: {ks_stat:0.4f}, Base KS Statistic is: {base_ks_stat:0.4f}"
 
                 # Redirect to the results page and pass the success message
                 return jsonify({'success_message': success_message,
@@ -278,11 +250,6 @@ def generate():
                             wrap_category_columns(orig_data,
                                                 category_columns)
                     orig_data = wrapped_data
-                
-                # Train NoGAN
-                # print(f"Bins Checked: {request.form['bins']}")
-                # print(f"Stretch Type Checked: {request.form['stretchType']}")
-                # print(f"Stretch Checked: {request.form['stretchVal']}")
                    
                 DEBUG_STEP="getting Bins"
                 bins, bins_error_status = \
