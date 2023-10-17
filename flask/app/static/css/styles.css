@@ -135,8 +135,8 @@ input[name="delimiter"] {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center; /* Center vertically */
-    align-items: left;    
+    justify-content: top;
+    align-items: right;
 }
 
 /* Hide the element by default */
@@ -172,6 +172,38 @@ header a[name="homeIcon"] {
     margin-right: 20px; /* Add some space between the icon and other content */
     text-decoration: none; /* Remove underline from the link */
     color: #003366;
+}
+
+.table-container {
+    height:200px;
+    width:700px;
+    overflow:auto;
+}
+
+.custom-table {
+    width: 100%;
+    max-width: 800px;
+    overflow-x: auto;
+    white-space: nowrap;
+    table-layout: fixed;
+}
+
+.custom-table td {
+    white-space: nowrap;
+}
+
+.table-condensed {
+    font-size: 8px;
+}
+
+.table-title {
+    text-align: center;
+    border-bottom: 2px solid #000;
+    padding-top: 10px; 
+}
+
+.line-break {
+    margin-top: 20px; /* Adjust the margin as needed */
 }
 
 /* Style the Alert Window */

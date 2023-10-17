@@ -6,16 +6,17 @@
     <div class="container">
         <div class="left-section">
             <form action="/generate" method="POST">
+                <input type="hidden" id="nonNumColsCount" name="nonNumColsCount" value = "{{ non_numeric_cols_count }}" >             
                 <input type="hidden" id="fileName" name="fileName" {% if file_name %} value = "{{ file_name }}" {% else %} value="" {% endif %}>
                 <input type="hidden" id="fileType" name="fileType" {% if file_name %} value = "{{ file_type }}" {% else %} value="" {% endif %}>                
                 <input type="hidden" id="delimiter" name="delimiter" {% if file_name %} value = "{{ delimiter }}" {% else %} value="" {% endif %}>
-                <label for="category_columns" name="categoryColumnsLabel">Select Category Columns</label><br>          
+                <label for="category_columns" name="categoryColumnsLabel">Select Numerical columns as Category</label><br>          
                 <select id="category_columns" name="category_columns" multiple>
                     {% for column in columns %}
                         <option value="{{ column }}">{{ column }}</option>
                     {% endfor %}
                 </select>
-                <input type="button" id="confirmColSel" name="confirmColSel" value="Confirm Selection" onclick="generateJSON()">
+                <input type="button" id="confirmColSel" name="confirmColSel" value="Click to Activate Custom Parameters" onclick="generateJSON()">
                 <br><br>
                 <input type="checkbox" id="bins" name="bins"  onchange="displayBins()">
                 <label for="bins" name="binsLabel">Custom Bins</label>
@@ -34,7 +35,7 @@
                 <input type="radio" id="validate" name="action" value="validate" onchange="displayActionElements(this.value)">
                 <label for="validate">Validate</label><br>
                 <label for="genNumRows" name="genNumRowsLabel">Number of Rows:</label>
-                <input type="number" id="genNumRows" name="genNumRows" value="1000" min="1" max="10000">
+                <input type="number" id="genNumRows" name="genNumRows" {% if row_count > 0 %} value="{{ row_count }}" {% else %} value="1000" {% endif %} min="1" max="10000">
                 <!-- <input type="range" id="genRangeInput" name="genRangeInput" min="1" max="10000" value="1000" onchange="updateTextInput(this.value);"> -->
                 <label for="valNumNodes" name="valNumNodesLabel" style="display: none">Number of Nodes:</label>
                 <input type="number" id="valNumNodes" name="valNumNodes" value="1000" min="1" max="10000" style="display: none">        
@@ -47,6 +48,30 @@
             </form>
         </div>
         <div class="right-section">
+            <p class="table-title">First 10 rows of the <strong>{{ file_name }}</strong> Data (Total {{ row_count }} Rows)</p>
+            <div id="dataHead" name="dataHead" 
+            class="table-container">
+                <table class="table table-sm table-condensed table-striped table-hover">
+                    <thead>
+                        <tr>
+                            {% for column in data_head.columns %}
+                                <th>{{ column }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for index, row in data_head.iterrows() %}
+                            <tr>
+                                {% for value in row %}
+                                    <td>{{ value }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="line-break"></div>
+            <div class="line-break"></div>
             <div id="progress" name="progress" class="progress hidden" role="progressbar" style="height:30px">
                 <div class="progress-bar progress-bar-striped progress-bar-animated active bg-info" style="width: 100%; font-size: xx-medium">Calculating KS Statistic
                 </div>

@@ -59,23 +59,43 @@ def index():
 
 @app.route('/process', methods=['POST'])
 def process():
-    DATA_DIR = app.config['RESULT_DIR']
     try:
-        # Get user inputs from the form
-        file = request.files['file']
-        file_name = file.filename
-        file_type = request.form['fileType']
-        delimiter = request.form['delimiter']
+        DEBUG_LOCATION = "Uploading Data"
+        DATA_DIR = app.config['RESULT_DIR']
+        SEED_CHECKED = request.form.get("sampleData")
+        if SEED_CHECKED is None:
+            # Get user inputs from the form
+            file = request.files['file']
+            file_name = file.filename
+            file_type = request.form['fileType']
+            delimiter = request.form['delimiter']
+        else:
+            # Retrieve Seed Data
+            SEED_DATA_DIR = app.config['SEED_DATA_DIR']
+            file_name = request.form['seedFileName']
+            print(f"FileName: {file_name}")        
+            seed_data = pd.read_csv(os.path.join(SEED_DATA_DIR, file_name))
+            print(f"File read")
+            file_type = "csv"
+            delimiter = ","
+                        
         print(f"Current path is: {os. getcwd()}")
 
         # Save the uploaded file
-        file.save(os.path.join(DATA_DIR, file_name))
+        DEBUG_STEP = "saving File"
+        if SEED_CHECKED is not None:
+            seed_data.to_csv(os.path.join(DATA_DIR, file_name), index=False)
+        else:
+            file.save(os.path.join(DATA_DIR, file_name))
 
         # Redirect to the second page for column selection and row generation
         return redirect(url_for('generate', file_name = file_name, file_type=file_type, delimiter=delimiter))
 
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+            error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
+            return render_template('results.html', 
+                                   success_message=None,
+                                   error_message=error_message)
             
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
@@ -101,12 +121,22 @@ def generate():
 
             # Get column names for category selection
             DEBUG_STEP="Getting Columns List from Data"
-            columns = df.columns.tolist()
+            #columns = df.columns.tolist()
+            columns = df.select_dtypes(include=['number']).columns.tolist()
+            non_numeric_cols_count = \
+                len(df.select_dtypes(exclude=['number']).columns)
+            
+            if not columns:
+                raise ValueError("No Numerical Columns Present!!")
             
             if re.search(r'[^a-zA-Z0-9_]', "".join(columns)):
                 raise ValueError("Special Characters or Space present in Column Names. Please remove them & try again")
 
-            return render_template('generate.html', columns = columns,
+            return render_template('generate.html', 
+                                   data_head = df.head(10),
+                                   row_count = df.shape[0],
+                                   columns = columns,
+                                   non_numeric_cols_count = non_numeric_cols_count,
                                    file_name = file_name,
                                    file_type = file_type,
                                    delimiter = delimiter,
@@ -124,7 +154,7 @@ def generate():
         DEBUG_LOCATION = "Processing Data"
         try:
             action_selected = request.form['action']
-            category_columns = request.form.getlist('category_columns')
+            selected_columns = request.form.getlist('category_columns')
             file_name = request.form["fileName"]
             file_type = request.form["fileType"]            
             delimiter = request.form["delimiter"]
@@ -142,7 +172,13 @@ def generate():
                                 
             orig_data = orig_data.dropna()
             features = orig_data.columns
+            cat_cols = \
+                orig_data.select_dtypes(exclude=['number']).columns.tolist()
+            
+            category_columns = selected_columns + cat_cols
+            
             print(f"Datafile Shape: {orig_data.shape}")
+            print(f"Category Columns: {category_columns}")
 
             if action_selected == 'validate':
                 DEBUG_LOCATION="Data Validation"
@@ -191,6 +227,7 @@ def generate():
                                               request.form["stretchValText"],
                                               len(train_data.columns)
                                               )
+
                 if stretch_error_status == "Error":
                     raise ValueError("Stretch Values Error")  
                 
@@ -218,7 +255,7 @@ def generate():
                                               synth_data, 
                                               n_nodes = num_nodes,
                                               verbose = False,
-                                              random_seed=seed)
+                                              random_seed = seed)
                 
                 DEBUG_STEP="calculating ECDF for Validation and Training Data"
                 _, ecdf_val2, ecdf_train = \
@@ -226,7 +263,7 @@ def generate():
                                               train_data, 
                                               n_nodes = num_nodes,
                                               verbose = False,
-                                              random_seed=seed)
+                                              random_seed = seed)
                 
                 DEBUG_STEP="calculating KS Statistic for Validation and Synthetic Data"
                 ks_stat = ks_statistic(ecdf_val1, ecdf_nogan_synth)
@@ -244,11 +281,17 @@ def generate():
                 num_rows = int(request.form['genNumRows'])
                 print(f"Num Rows: {num_rows}")
 
+                cat_cols = \
+                    orig_data.select_dtypes(exclude=['number']).columns.tolist()
+
+                category_columns = selected_columns + cat_cols
+                print(f"Category Columns: {category_columns}")  
+                
                 if category_columns:
                     DEBUG_STEP = "wrapping category columns"                   
                     wrapped_data, idx_to_key, _ = \
                             wrap_category_columns(orig_data,
-                                                category_columns)
+                                                  category_columns)
                     orig_data = wrapped_data
                    
                 DEBUG_STEP="getting Bins"

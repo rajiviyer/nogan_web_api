@@ -4,24 +4,27 @@
 {% endblock %}
 {% block content %}
     <div>
-        <form method="POST" action="/process" enctype="multipart/form-data">
-            <label name = "inputFile" for="file">Select a file to Upload</label><br>
-            <input type="file" onchange="checkFileSize()" id = "fileID" name="file" accept=".csv, .txt, .xlsx" required><br><br>
-            <!-- <div id="customAlert" class="hidden">
-                <div id="customAlertContent">
-                    <span id="customAlertMessage"></span>
-                    <button onclick="closeCustomAlert()">OK</button>
-                </div>
-            </div> -->
-            <label name = "fileTypeLabel" for="fileType">File Type:</label>
+        <form method="POST" action="/process" enctype="multipart/form-data" onsubmit="return validateUpload()">
+            <label name="inputFile" for="file">Select a file to Upload</label><br>
+            <input type="file" onchange="checkFileSize()" id="fileID" name="file" accept=".csv, .txt, .xlsx"><br><br>
+            <label name="fileTypeLabel" for="fileType">File Type:</label>
             <select name="fileType" onchange="hideTextInput(this.value);" required>
                 <option value="csv">CSV</option>
                 <option value="excel">Excel</option>
                 <option value="text">Text</option>      
             </select>&nbsp;
             <label name = "delimLabel" for="delimiter">Delimiter:</label>
-            <input type="text" name="delimiter" value="," required><br><br><br>
-            <input type="submit" name="uploadButton" value="Upload">
+            <input type="text" name="delimiter" value="," required><br>
+            <input type="checkbox" id="sampleData" name="sampleData"  onchange="displaySampleDataOptions()" checked>
+            <label for="sampleData" name="sampleDataLabel">Sample Data</label>
+            <select name="seedFileName" required>
+                <option value="diabetes.csv">Diabetes</option>
+                <option value="insurance.csv">Insurance</option>
+                <option value="student_success.csv">Students Success</option>                
+                <option value="telecom.csv">Telecom</option>      
+            </select>            
+            <br><br><br>
+            <input type="submit" id="uploadButton" name="uploadButton" value="Upload">
         </form>    
     </div>
     <script src="../static/js/upload.js"></script> 

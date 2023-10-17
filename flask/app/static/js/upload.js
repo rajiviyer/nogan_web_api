@@ -28,6 +28,44 @@ function checkFileSize()
     }
 };
 
+function displaySampleDataOptions() {
+    var seedDataInput = document.querySelector('input[name="sampleData"]');
+    var selectedData = document.querySelector('select[name="seedFileName"]');
+  
+    if (seedDataInput.checked) {
+        selectedData.classList.remove('hidden');
+    }
+    else {
+        selectedData.classList.add('hidden');
+    }
+}
+
+function validateUpload() {
+    var seedDataInput = document.querySelector('input[name="sampleData"]');
+    var fileInput = document.querySelector('input[name="file"]');
+
+    if ((!seedDataInput.checked) && (fileInput.files.length == 0)) {
+        alert("Please upload file or select sample data");
+        return false; 
+    }
+    else {
+        return true;
+    }
+}
+
+// document.getElementById("uploadButton").addEventListener("click", function () {
+//     var seedDataInput = document.querySelector('input[name="sampleData"]');
+//     var fileInput = document.querySelector('input[name="file"]');
+
+//     if ((!seedDataInput.checked) && (fileInput.files.length == 0)) {
+//         alert("Please upload file or select sample data");
+//         return false;
+//     }
+//     else {
+//         return true;
+//     }
+//   });
+
 // function checkFileSize() {
 //     const fileInput = document.getElementById('fileInput');
 //     const customAlert = document.getElementById('customAlert');

@@ -104,6 +104,7 @@ function displayStretchVal() {
 function generateJSON() {
   const selectedOptions = Array.from(document.getElementById('category_columns').selectedOptions);
   const allOptions = document.getElementById('category_columns').options;
+  const nonNumColsCount = document.getElementById('nonNumColsCount').value;
   const jsonBinsData = {};
   const jsonStretchTypeData = {};
   const jsonStretchValData = {};
@@ -118,7 +119,7 @@ function generateJSON() {
     }
   }
 
-  if (selectedOptions.length > 0) {
+  if (selectedOptions.length > 0 || nonNumColsCount > 0) {
     // If some selected, create a single entry called "Cat_Cols"
     jsonBinsData['cat_cols'] = 100;
     jsonStretchTypeData['cat_cols'] = 'Uniform';
@@ -140,6 +141,7 @@ function generateJSON() {
 
 document.querySelector('form').addEventListener('submit', function(e) {
   e.preventDefault();
+  // document.getElementById('dataHead').classList.add('hidden');  
   document.getElementById('success').classList.add('hidden');
   document.getElementById('error').classList.add('hidden');
   document.getElementById('successDiv').classList.add('hidden');
