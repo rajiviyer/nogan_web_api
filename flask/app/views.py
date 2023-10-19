@@ -15,9 +15,7 @@ def validate_bins_stretch(form_element_type : str,
                           form_element_checked : str, 
                           form_text_json: str,
                           col_len : int):
-    # print(f"form_element_status : {form_element_status}")
-    # print(f"Form Text Json: {form_text_json}")
-    # print(f"Column Length : {col_len}")
+    
     if form_element_checked is None:
         if form_element_type == "bins":
             value_list = [100] * col_len
@@ -37,17 +35,14 @@ def validate_bins_stretch(form_element_type : str,
                 if not form_element_json:
                     return None, "Error"
                 
-                # print(f"Value List: {value_list}")
                 if (form_element_type == "bins") and (min(value_list) <= 0):
                     return None, "Error"
                     
                 if (form_element_type == "stretch_type") and (len(set(value_list) - app.config['STRETCH_TYPE']) > 0):
                     return None, "Error"
-                
-                # print(f"{form_element_type}:{value_list}")    
+                  
                 return value_list, "Success"
-            except Exception as e:
-                # print(f"Function Error: {str(e)}")                 
+            except Exception as e:               
                 return None, "Error"
         else:
             return None, "Error"
@@ -109,22 +104,28 @@ def generate():
                          
             # Load data into a pandas DataFrame based on file type
             print(f"File Type: {file_type}")
+            na_values_list = app.config["NA_VALUES_LIST"]
             if file_type == 'csv':
                 DEBUG_STEP="Reading CSV File"
-                df = pd.read_csv(os.path.join(DATA_DIR, file_name), delimiter=delimiter)
+                df = pd.read_csv(os.path.join(DATA_DIR, file_name), 
+                                 delimiter=delimiter, 
+                                 na_values=na_values_list)
             elif file_type == 'text':
                 DEBUG_STEP="Reading Text File"
-                df = pd.read_csv(os.path.join(DATA_DIR, file_name), delimiter=delimiter)
+                df = pd.read_csv(os.path.join(DATA_DIR, file_name), 
+                                 delimiter=delimiter, 
+                                 na_values=na_values_list)
             elif file_type == 'excel':
                 DEBUG_STEP="Reading Excel File"
-                df = pd.read_excel(os.path.join(DATA_DIR, file_name))            
+                df = pd.read_excel(os.path.join(DATA_DIR, file_name),
+                                   na_values=na_values_list
+                                   )            
 
             # Get column names for category selection
             DEBUG_STEP="Getting Columns List from Data"
-            #columns = df.columns.tolist()
             columns = df.select_dtypes(include=['number']).columns.tolist()
             non_numeric_cols_count = \
-                len(df.select_dtypes(exclude=['number']).columns)
+                    len(df.select_dtypes(exclude=['number']).columns)
             
             if not columns:
                 raise ValueError("No Numerical Columns Present!!")
@@ -158,17 +159,20 @@ def generate():
             file_name = request.form["fileName"]
             file_type = request.form["fileType"]            
             delimiter = request.form["delimiter"]
+            random_seed = int(request.form["seed"])
             
             # Set Random Seed
-            seed = np.random.randint(low=1, high=9999999, size=1)
-            
+            # seed = np.random.randint(low=1, high=9999999, size=1)
+            na_values_list = app.config["NA_VALUES_LIST"]
             if file_type == "excel":
                 DEBUG_STEP="Reading Excel Data"
-                orig_data = pd.read_excel(os.path.join(DATA_DIR, file_name))
+                orig_data = pd.read_excel(os.path.join(DATA_DIR, file_name),
+                                          na_values = na_values_list)
             else:
                 DEBUG_STEP="Reading Text/CSV Data"
                 orig_data = pd.read_csv(os.path.join(DATA_DIR, file_name),
-                                        delimiter=delimiter)
+                                        delimiter=delimiter,
+                                        na_values = na_values_list)
                                 
             orig_data = orig_data.dropna()
             features = orig_data.columns
@@ -188,7 +192,7 @@ def generate():
             
                 if category_columns:
                     DEBUG_STEP = "wrapping Category Columns"
-                    train_data, _ , _ = \
+                    train_data, idx_to_key, _ = \
                             wrap_category_columns(train_data,
                                                   category_columns)                
                     val_data, _ , _ = \
@@ -235,7 +239,7 @@ def generate():
                 
                 DEBUG_STEP = "instantiating NoGAN Model"
                 nogan = NoGANSynth(train_data,
-                                random_seed=seed)
+                                random_seed=random_seed)
                 
                 DEBUG_STEP = "fitting NoGAN Model"
                 nogan.fit(bins = bins)
@@ -255,7 +259,7 @@ def generate():
                                               synth_data, 
                                               n_nodes = num_nodes,
                                               verbose = False,
-                                              random_seed = seed)
+                                              random_seed = random_seed)
                 
                 DEBUG_STEP="calculating ECDF for Validation and Training Data"
                 _, ecdf_val2, ecdf_train = \
@@ -263,18 +267,36 @@ def generate():
                                               train_data, 
                                               n_nodes = num_nodes,
                                               verbose = False,
-                                              random_seed = seed)
+                                              random_seed = random_seed)
                 
                 DEBUG_STEP="calculating KS Statistic for Validation and Synthetic Data"
                 ks_stat = ks_statistic(ecdf_val1, ecdf_nogan_synth)
                 
                 DEBUG_STEP="calculating KS Statistic for Validation and Training Data"
                 base_ks_stat = ks_statistic(ecdf_val2, ecdf_train)
-                success_message = f"KS Statistic is: {ks_stat:0.4f}, Base KS Statistic is: {base_ks_stat:0.4f}"
+
+                # Generate a unique CSV file name
+                DEBUG_STEP="generating csv file"
+                if category_columns:
+                    DEBUG_STEP="unwrapping Category Columns"
+                    generated_data = \
+                    unwrap_category_columns(data=synth_data,
+                                            idx_to_key=idx_to_key,
+                                            cat_cols=category_columns)
+                else:
+                    generated_data = synth_data                                 
+                generated_data = generated_data[features]
+                timestamp = int(time.time())
+                csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
+                generated_data.to_csv(os.path.join(DATA_DIR, csv_filename), index=False)
+                file_location = f"/download/{csv_filename}"
+                
+                
+                success_message = f"<strong>KS Statistic</strong>: {ks_stat:0.4f}<br><strong>Base KS Statistic</strong>: {base_ks_stat:0.4f}"
 
                 # Redirect to the results page and pass the success message
                 return jsonify({'success_message': success_message,
-                                'file_location': None, 
+                                'file_location': file_location, 
                                 'error_message': None})
             else:
                 DEBUG_LOCATION = "Data Generation"
@@ -332,7 +354,7 @@ def generate():
                 
                 DEBUG_STEP = "instantiating NoGAN Model"
                 nogan = NoGANSynth(orig_data,
-                                random_seed=seed)
+                                random_seed=random_seed)
                 
                 DEBUG_STEP = "fitting NoGAN Model"                
                 nogan.fit(bins = bins)
@@ -356,7 +378,7 @@ def generate():
                                                   synth_data, 
                                                   n_nodes = num_nodes,
                                                   verbose = False,
-                                                  random_seed=seed)
+                                                  random_seed=random_seed)
                     
                     DEBUG_STEP="calculating KS Statistic for Original and Synthetic Data"
                     ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)
@@ -378,7 +400,7 @@ def generate():
                 file_location = f"/download/{csv_filename}"
 
                 if ks_stat_selected is not None:
-                    success_message = f"Synthetic Data file {csv_filename} generated successfully.\nKS Statistic is: {ks_stat:0.4f}"
+                    success_message = f"Synthetic Data file {csv_filename} generated successfully.<br><strong>KS Statistic</strong>: {ks_stat:0.4f}"
                 else:
                     success_message = f'Synthetic Data file {csv_filename} generated successfully.'                    
 

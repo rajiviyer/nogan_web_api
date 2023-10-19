@@ -1,49 +1,28 @@
-// function updateTextInput(val) {
-//     document.getElementById("numRows").value=val; 
-//   }
-
 function displayActionElements(val) {
-    // const actionName = document.getElementsByName("action").value;
     const actionName = val;    
-    var valNumNodesLabel = document.querySelector('label[name="valNumNodesLabel"]');
-    var genNumRowsLabel = document.querySelector('label[name="genNumRowsLabel"]');
-    var genKSStatsLabel = document.querySelector('label[name="genKSStatsLabel"]');
+    var valNumNodesDiv = document.querySelector('div[id="valNumNodesDiv"]')
+    var genNumRowsDiv = document.querySelector('div[id="genNumRowsDiv"]')
+    var genKSStatsDiv = document.querySelector('div[id="genKSStatsDiv"]')
     var genNumNodesLabel = document.querySelector('label[name="genNumNodesLabel"]');
     var genKSStatsInput = document.querySelector('input[name="genKSStats"]');
-    var genNumNodesInput  = document.querySelector('input[name="genNumNodes"]');
-    var genNumRowsInput = document.querySelector('input[id="genNumRows"]');
-    var valNumNodes = document.querySelector('input[id="valNumNodes"]');    
-    // var rangeInput = document.querySelector('input[id="genRangeInput"]');
-    var submitButton = document.querySelector('input[type="submit"]');    
-    // console.log("test");
-    // console.log(actionName);
+    var genNumNodes  = document.querySelector('input[name="genNumNodes"]');
+    var submitButton = document.querySelector('input[type="submit"]');
+
     if (actionName == "validate") {
-      genNumRowsLabel.style.display = 'none';
-      genNumRowsInput.style.display = 'none';
-      genKSStatsLabel.style.display = 'none';     
-      genKSStatsInput.style.display = 'none';
-      genNumNodesLabel.style.display = 'none';
-      genNumNodesInput.style.display = 'none';
-      // rangeInput.style.display = 'none';
-      valNumNodesLabel.style.display = 'inline-block';
-      valNumNodes.style.display = 'inline-block';      
-      submitButton.value = 'Validate'; 
-      submitButton.style.marginTop = '5px'; // Adjust the margin      
+      genNumRowsDiv.classList.add("hidden");
+      genKSStatsDiv.classList.add("hidden");
+      valNumNodesDiv.classList.remove("hidden");    
+      submitButton.value = 'Validate';    
     }
     else {
-      genNumRowsLabel.style.display = 'inline-block';
-      genNumRowsInput.style.display = 'inline-block';
-      genKSStatsLabel.style.display = 'inline-block';      
-      genKSStatsInput.style.display = 'inline-block';
+      genNumRowsDiv.classList.remove("hidden");      
+      genKSStatsDiv.classList.remove("hidden");      
       if (genKSStatsInput.checked) {
-        genNumNodesLabel.style.display = 'inline-block';      
-        genNumNodes.style.display = 'inline-block';
+        genNumNodesLabel.classList.remove("hidden");
+        genNumNodes.classList.remove("hidden");
       }      
-      // rangeInput.style.display = 'inline-block';
-      valNumNodesLabel.style.display = 'none'; 
-      valNumNodes.style.display = 'none';          
-      submitButton.value = 'Generate';
-      submitButton.style.marginTop = '0'; // Reset the margin            
+      valNumNodesDiv.classList.add("hidden");
+      submitButton.value = 'Generate';       
     }
 }
 
@@ -53,12 +32,12 @@ function displayGenNumNodes() {
     var genNumNodes = document.querySelector('input[name="genNumNodes"]');
   
     if (genKSStatsInput.checked) {
-      genNumNodesLabel.style.display = 'inline-block';      
-      genNumNodes.style.display = 'inline-block';
+      genNumNodesLabel.classList.remove("hidden");
+      genNumNodes.classList.remove("hidden");
     }
     else {
-      genNumNodesLabel.style.display = 'none';          
-      genNumNodes.style.display = 'none';
+      genNumNodesLabel.classList.add("hidden");
+      genNumNodes.classList.add("hidden");
     }
 }
 
@@ -72,7 +51,6 @@ function displayBins() {
   else {
     binsText.classList.add('hidden');
   }
-
 }
 
 function displayStretchType() {
@@ -98,7 +76,6 @@ function displayStretchVal() {
   else {
     stretchValText.classList.add('hidden');
   }
-
 }
 
 function generateJSON() {
@@ -120,7 +97,6 @@ function generateJSON() {
   }
 
   if (selectedOptions.length > 0 || nonNumColsCount > 0) {
-    // If some selected, create a single entry called "Cat_Cols"
     jsonBinsData['cat_cols'] = 100;
     jsonStretchTypeData['cat_cols'] = 'Uniform';
     jsonStretchValData['cat_cols'] = 1.0;
@@ -131,17 +107,8 @@ function generateJSON() {
   document.getElementById('stretchValText').value = JSON.stringify(jsonStretchValData, null, 2);
 }
 
-// function clearMessages() {
-//   document.getElementById('success').classList.add('hidden');     
-//   document.getElementById('successDiv').classList.add('hidden');
-  
-//   document.getElementById('error').classList.add('hidden');     
-//   document.getElementById('errorDiv').classList.add('hidden');  
-// }
-
 document.querySelector('form').addEventListener('submit', function(e) {
   e.preventDefault();
-  // document.getElementById('dataHead').classList.add('hidden');  
   document.getElementById('success').classList.add('hidden');
   document.getElementById('error').classList.add('hidden');
   document.getElementById('successDiv').classList.add('hidden');
@@ -159,7 +126,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
         document.getElementById('progress').classList.add('hidden');        
         document.getElementById('successDiv').classList.remove('hidden');
         document.getElementById('success').classList.remove('hidden');
-        document.getElementById('success').textContent = data.success_message;
+        document.getElementById('success').innerHTML = data.success_message;
       }
       else {
         document.getElementById('success').classList.add('hidden');     
@@ -184,12 +151,11 @@ document.querySelector('form').addEventListener('submit', function(e) {
       else {
         document.getElementById('fileLocation').classList.add('hidden');      
       }
-      
-      // if (data.success_message.trim() != '' | data.error_message.trim() != '') {
-      //   document.getElementById('progress').classList.add('hidden');
-      // }
-      // else {
-      //   document.getElementById('progress').classList.remove('hidden');        
-      // }
   });
+});
+
+// Add an event listener to call the function when the page loads
+window.addEventListener("load", function() {
+  generateJSON();
+  displayActionElements("generate");
 });

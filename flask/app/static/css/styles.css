@@ -47,6 +47,11 @@ select[name="fileType"] {
     width: 25%;
 }
 
+select[name="category_columns"] {
+    height: 10%;
+    padding: 0px;
+}
+
 /* Style the submit button with a blue background color and white text */
 input[type="submit"] {
     background-color: #CC9900;
@@ -54,6 +59,7 @@ input[type="submit"] {
     border: none;
     cursor: pointer;
     transition: background-color 0.3s;
+    margin-bottom: 0px;
 }
 
 /* Change button color on hover */
@@ -67,8 +73,8 @@ div.textarea {
     min-height: 50px;
  }
  
- div.textarea textarea {
-    position: absolute;
+div.textarea textarea {
+    position: relative;
     min-height: 30px;
     width: 300px;
     transition: all 200ms;
@@ -78,31 +84,6 @@ div.textarea {
     z-index: 1001;
     min-height:250px;
  }
-
-/* .button-container {
-    display: flex;
-    justify-content: center;
-} */
-
-/* Style the submit button with a blue background color and white text */
-/* button {
-    background-color: #CC9900;
-    color: black;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    width: 25%;
-    font-size: 16px;
-    padding: 10px;
-    margin-bottom: 15px;
-    border: 1px solid #666;
-    border-radius: 4px;
-} */
-
-/* Change button color on hover */
-/* button:hover {
-    background-color: #669999;
-} */
 
 /* Left-align all labels */
 form label {
@@ -203,33 +184,10 @@ header a[name="homeIcon"] {
 }
 
 .line-break {
-    margin-top: 20px; /* Adjust the margin as needed */
+    margin-top: 20px;
 }
 
-/* Style the Alert Window */
-/* .hidden {
-    display: none;
+.custom-legend {
+    font-size: 15px;
+    color: #000;
 }
-
-#customAlert {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#customAlertContent {
-    background: #fff;
-    padding: 20px;
-    border-radius: 5px;
-    text-align: center;
-}
-
-#customAlert button {
-    margin-top: 10px;
-} */
