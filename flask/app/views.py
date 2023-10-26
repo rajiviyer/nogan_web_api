@@ -1,8 +1,9 @@
-from app import app
+from app import app, socketio
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from nogan_synthesizer import NoGANSynth
 from nogan_synthesizer.preprocessing import wrap_category_columns, unwrap_category_columns
-from genai_evaluation import multivariate_ecdf, ks_statistic
+#from genai_evaluation import multivariate_ecdf, ks_statistic
+from app.modules.genai_evaluation import multivariate_ecdf, ks_statistic
 import pandas as pd
 import numpy as np
 import os
@@ -10,13 +11,19 @@ import random
 import time
 import re
 import json
+import threading
 
 def validate_bins_stretch(form_element_type : str, 
                           form_element_checked : str, 
                           form_text_json: str,
                           col_len : int):
+    # print(f"form_element_type: {form_element_type}")
+    # print(f"form_element_checked: {form_element_checked}")
+    # print(f"form_text_json: {form_text_json}")
+    # print(f"col_len: {col_len}")
     
     if form_element_checked is None:
+        # print(f"Form Element is null")
         if form_element_type == "bins":
             value_list = [100] * col_len
         elif form_element_type == "stretch_type":
@@ -26,6 +33,7 @@ def validate_bins_stretch(form_element_type : str,
 
         return value_list, "Success"
     else:
+        # print(f"Form Element is not null")
         if form_text_json:
             try:
                 form_element_json = json.loads(form_text_json)
@@ -47,7 +55,282 @@ def validate_bins_stretch(form_element_type : str,
         else:
             return None, "Error"
                     
-                                
+def validate_data(orig_data, features, category_columns, bins_checked, 
+                  bins_text, stretch_type_checked, stretch_type_text,
+                  stretch_val_checked, stretch_val_text, num_nodes,
+                  random_seed, ks_seed, data_dir, file_name):
+    try:
+        DEBUG_LOCATION="Data Validation"
+        
+        train_data = orig_data.sample(frac=0.5)
+        val_data = orig_data.drop(train_data.index)
+
+        if category_columns:
+            DEBUG_STEP = "wrapping Category Columns"
+            train_data, idx_to_key, _ = \
+                    wrap_category_columns(train_data,
+                                            category_columns)                
+            val_data, _ , _ = \
+                    wrap_category_columns(val_data,
+                                            category_columns)                               
+        # Train NoGAN
+        DEBUG_STEP="getting Bins"
+        bins, bins_error_status = \
+                validate_bins_stretch("bins",
+                                      bins_checked,
+                                      bins_text,
+                                      len(train_data.columns))
+        if bins_error_status == "Error":
+            raise ValueError("Bins Error")
+        
+        print(f"Bins: {bins}")
+                        
+        DEBUG_STEP="getting Stretch Type"
+                            
+        stretch_type, stretch_type_error_status = \
+                validate_bins_stretch("stretch_type",
+                                      stretch_type_checked,
+                                      stretch_type_text,
+                                      len(train_data.columns))
+        if stretch_type_error_status == "Error":
+            raise ValueError("Stretch Type Error")
+        
+        print(f"Stretch Type: {stretch_type}")
+        
+        DEBUG_STEP="getting Stretch Values"
+        stretch, stretch_error_status = \
+                validate_bins_stretch("stretch",
+                                      stretch_val_checked,
+                                      stretch_val_text,
+                                      len(train_data.columns))
+
+        if stretch_error_status == "Error":
+            raise ValueError("Stretch Values Error")  
+        
+        print(f"stretch val: {stretch}")
+        
+        DEBUG_STEP = "instantiating NoGAN Model"
+        nogan = NoGANSynth(train_data,
+                           random_seed=random_seed)
+        
+        DEBUG_STEP = "fitting NoGAN Model"
+        nogan.fit(bins = bins)
+        
+        num_rows = len(train_data)
+        
+        DEBUG_STEP="generating Synthetic Data"
+        synth_data = \
+            nogan.generate_synthetic_data(no_of_rows = num_rows,
+                                          stretch_type = stretch_type,
+                                          stretch = stretch)
+        
+        # Calculate ECDFs & KS Stats
+        DEBUG_STEP="calculating ECDF for Validation and Synthetic Data"
+        for msg in multivariate_ecdf(val_data, 
+                                     synth_data, 
+                                     n_nodes = num_nodes,
+                                     random_seed = ks_seed):
+            
+            #print(f"ECDF Message: {msg}")
+            if msg["result_type"] == "update_progress":
+                progress = f"Validation vs Synthetic - {msg['result']['progress']}"
+                progress_perc = msg['result']['progress_perc']
+                socketio.emit('update_progress', 
+                              {'progress': progress, 
+                               'progress_perc': progress_perc})
+            else:
+                ecdf_val1 = msg["result"]["ecdf_a"]
+                ecdf_nogan_synth = msg["result"]["ecdf_b"]
+        
+        DEBUG_STEP="calculating ECDF for Validation and Training Data"
+
+        for msg in  multivariate_ecdf(val_data, 
+                                      train_data, 
+                                      n_nodes = num_nodes,
+                                      random_seed = ks_seed):
+
+            if msg["result_type"] == "update_progress":
+                progress = f"Validation vs Training - {msg['result']['progress']}"
+                progress_perc = msg["result"]["progress_perc"]
+                socketio.emit('update_progress', 
+                              {'progress': progress, 
+                               'progress_perc': progress_perc})
+            else:
+                ecdf_val2 = msg["result"]["ecdf_a"]
+                ecdf_train = msg["result"]["ecdf_b"]
+                        
+        DEBUG_STEP="calculating KS Statistic for Validation and Synthetic Data"
+        ks_stat = ks_statistic(ecdf_val1, ecdf_nogan_synth)
+        
+        DEBUG_STEP="calculating KS Statistic for Validation and Training Data"
+        base_ks_stat = ks_statistic(ecdf_val2, ecdf_train)
+
+        # Generate a unique CSV file name
+        DEBUG_STEP="generating csv file"
+        if category_columns:
+            DEBUG_STEP="unwrapping Category Columns"
+            generated_data = \
+            unwrap_category_columns(data=synth_data,
+                                    idx_to_key=idx_to_key,
+                                    cat_cols=category_columns)
+        else:
+            generated_data = synth_data                                 
+        generated_data = generated_data[features]
+        timestamp = int(time.time())
+        csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
+        generated_data.to_csv(os.path.join(data_dir, csv_filename), index=False)
+        file_location = f"/download/{csv_filename}"
+        
+        
+        success_message = f"<strong>KS Statistic</strong>: {ks_stat:0.4f}<br><strong>Base KS Statistic</strong>: {base_ks_stat:0.4f}<br><p><a href='{file_location}'>Download</a></p>"
+
+        socketio.emit('update_message', 
+                      {'message': success_message, 'type': 'success'})
+    except Exception as e:
+        if DEBUG_STEP.lower() in ["getting bins", "getting stretch type", "getting stretch values"]:
+            error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): Please check the json format'
+
+            if DEBUG_STEP.lower() in ["getting bins"]:
+                error_message = error_message + "." + " Also Bin values should not be negative or zero"
+                
+            if DEBUG_STEP.lower() in ["getting stretch type"]:
+                error_message = error_message + "." + f" Also Stretch type should have only {list(app.config['STRETCH_TYPE'])} entries"
+                
+        else:                
+            error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
+        
+        socketio.emit('update_message', 
+                      {'message': error_message, 'type': 'error'})
+                             
+def generate_data(orig_data, features, category_columns,
+                  bins_checked, bins_text, stretch_type_checked,
+                  stretch_type_text, stretch_val_checked,
+                  stretch_val_text, ks_stat_selected, num_nodes, num_rows,
+                  random_seed, ks_seed, data_dir, file_name
+                  ):
+    try:
+        DEBUG_LOCATION = "Data Generation"
+        
+        print(f"Num Rows: {num_rows}")
+        print(f"Category Columns: {category_columns}")  
+
+        if category_columns:
+            DEBUG_STEP = "wrapping category columns"                   
+            wrapped_data, idx_to_key, _ = \
+                    wrap_category_columns(orig_data,
+                                          category_columns)
+            orig_data = wrapped_data
+            
+        DEBUG_STEP="getting Bins"
+        bins, bins_error_status = \
+                validate_bins_stretch("bins",
+                                      bins_checked,
+                                      bins_text,
+                                      len(orig_data.columns))
+        if bins_error_status == "Error":
+            raise ValueError("Bins Error")
+
+        print(f"Bins: {bins}")
+
+        DEBUG_STEP="getting Stretch Type"
+        stretch_type, stretch_type_error_status = \
+                validate_bins_stretch("stretch_type", 
+                                      stretch_type_checked,
+                                      stretch_type_text,
+                                      len(orig_data.columns))
+        if stretch_type_error_status == "Error":
+            raise ValueError("Stretch Type Error")
+
+        print(f"Stretch Type: {stretch_type}")
+
+        DEBUG_STEP="getting Stretch Values"
+        stretch, stretch_error_status = \
+                validate_bins_stretch("stretch", 
+                                      stretch_val_checked,
+                                      stretch_val_text,
+                                      len(orig_data.columns))
+        if stretch_error_status == "Error":
+            raise ValueError("Stretch Values Error")  
+
+        print(f"stretch val: {stretch}")
+
+        DEBUG_STEP = "instantiating NoGAN Model"
+        nogan = NoGANSynth(orig_data,
+                        random_seed=random_seed)
+
+        DEBUG_STEP = "fitting NoGAN Model"                
+        nogan.fit(bins = bins)
+
+        DEBUG_STEP = "generating Synthetic Data"            
+        synth_data = \
+            nogan.generate_synthetic_data(no_of_rows = num_rows,
+                                          stretch_type = stretch_type,
+                                          stretch = stretch)
+
+        
+        print(f"KS Selected Value:{ks_stat_selected}")
+
+        if ks_stat_selected is not None:
+            
+            DEBUG_STEP="calculating ECDF for Original and Synthetic Data"
+            # Calculate ECDFs & KS Stats 
+            
+        for msg in multivariate_ecdf(orig_data, 
+                                     synth_data, 
+                                     n_nodes = num_nodes,
+                                     random_seed = ks_seed):
+
+            if msg["result_type"] == "update_progress":
+                progress = f"Original vs Synthetic - {msg['result']['progress']}"
+                progress_perc = msg["result"]["progress_perc"]
+                socketio.emit('update_progress', 
+                              {'progress': progress, 
+                               'progress_perc': progress_perc})
+            else:
+                ecdf_train = msg["result"]["ecdf_a"]
+                ecdf_nogan_synth = msg["result"]["ecdf_b"]            
+            
+        DEBUG_STEP="calculating KS Statistic for Original and Synthetic Data"
+        ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)
+
+        if category_columns:
+            DEBUG_STEP="unwrapping Category Columns"
+            generated_data = \
+            unwrap_category_columns(data=synth_data,
+                                    idx_to_key=idx_to_key,
+                                    cat_cols=category_columns)
+        else:
+            generated_data = synth_data                
+
+        # Generate a unique CSV file name
+        generated_data = generated_data[features]
+        timestamp = int(time.time())
+        csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
+        generated_data.to_csv(os.path.join(data_dir, csv_filename), index=False)
+        file_location = f"/download/{csv_filename}"
+
+        if ks_stat_selected is not None:
+            success_message = f"Synthetic Data file {csv_filename} generated successfully.<br><strong>KS Statistic</strong>: {ks_stat:0.4f}<br><p><a href='{file_location}'>Download</a></p>"
+        else:
+            success_message = f'Synthetic Data file {csv_filename} generated successfully.'                    
+
+        socketio.emit('update_message', {'message': success_message, 'type': 'success'})
+
+    except Exception as e:
+        if DEBUG_STEP.lower() in ["getting bins", "getting stretch type", "getting stretch values"]:
+            error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): Please check the json format'
+
+        if DEBUG_STEP.lower() in ["getting bins"]:
+            error_message = error_message + "." + " Also Bin values should not be negative or zero"
+            
+        if DEBUG_STEP.lower() in ["getting stretch type"]:
+            error_message = error_message + "." + f" Also Stretch type should have only {list(app.config['STRETCH_TYPE'])} entries"
+            
+        else:                
+            error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
+        
+        socketio.emit('update_message', {'message': error_message, 'type': 'error'})
+       
 @app.route('/')
 def index():
     return render_template('upload.html')
@@ -84,7 +367,10 @@ def process():
             file.save(os.path.join(DATA_DIR, file_name))
 
         # Redirect to the second page for column selection and row generation
-        return redirect(url_for('generate', file_name = file_name, file_type=file_type, delimiter=delimiter))
+        return redirect(url_for('generate', 
+                                file_name = file_name, 
+                                file_type=file_type, 
+                                delimiter=delimiter))
 
     except Exception as e:
             error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
@@ -160,6 +446,13 @@ def generate():
             file_type = request.form["fileType"]            
             delimiter = request.form["delimiter"]
             random_seed = int(request.form["seed"])
+            ks_seed = int(request.form["KSSeed"])
+            bins_checked = request.form.get("bins")
+            bins_text = request.form["binsText"]
+            stretch_type_checked = request.form.get("stretchType")
+            stretch_type_text = request.form["StretchTypeText"]
+            stretch_val_checked = request.form.get("stretchVal")
+            stretch_val_text = request.form["stretchValText"]            
             
             # Set Random Seed
             # seed = np.random.randint(low=1, high=9999999, size=1)
@@ -173,6 +466,7 @@ def generate():
                 orig_data = pd.read_csv(os.path.join(DATA_DIR, file_name),
                                         delimiter=delimiter,
                                         na_values = na_values_list)
+                print("Read csv/txt data")
                                 
             orig_data = orig_data.dropna()
             features = orig_data.columns
@@ -185,245 +479,40 @@ def generate():
             print(f"Category Columns: {category_columns}")
 
             if action_selected == 'validate':
-                DEBUG_LOCATION="Data Validation"
                 num_nodes = int(request.form['valNumNodes'])
-                train_data = orig_data.sample(frac=0.5)
-                val_data = orig_data.drop(train_data.index)
-            
-                if category_columns:
-                    DEBUG_STEP = "wrapping Category Columns"
-                    train_data, idx_to_key, _ = \
-                            wrap_category_columns(train_data,
-                                                  category_columns)                
-                    val_data, _ , _ = \
-                            wrap_category_columns(val_data,
-                                                  category_columns)                               
-                # Train NoGAN
-                DEBUG_STEP="getting Bins"
-                bins, bins_error_status = \
-                        validate_bins_stretch("bins",
-                                            request.form.get("bins"),
-                                            request.form["binsText"],
-                                            len(train_data.columns)
-                                            )
-                if bins_error_status == "Error":
-                    raise ValueError("Bins Error")
-                
-                print(f"Bins: {bins}")
-                                
-                DEBUG_STEP="getting Stretch Type"
-                                    
-                stretch_type, stretch_type_error_status = \
-                        validate_bins_stretch("stretch_type",
-                                              request.form.get("stretchType"),
-                                              request.form["StretchTypeText"],
-                                              len(train_data.columns)
-                                              )
-                if stretch_type_error_status == "Error":
-                    raise ValueError("Stretch Type Error")
-                
-                print(f"Stretch Type: {stretch_type}")
-                
-                DEBUG_STEP="getting Stretch Values"
-                stretch, stretch_error_status = \
-                        validate_bins_stretch("stretch",
-                                              request.form.get("stretchVal"),
-                                              request.form["stretchValText"],
-                                              len(train_data.columns)
-                                              )
 
-                if stretch_error_status == "Error":
-                    raise ValueError("Stretch Values Error")  
+                task_thread = threading.Thread(target = validate_data, 
+                                               args=(orig_data, features, 
+                                                     category_columns, bins_checked, bins_text, stretch_type_checked, stretch_type_text,stretch_val_checked, stretch_val_text, 
+                                                     num_nodes,random_seed, ks_seed, DATA_DIR, file_name))
+                task_thread.start()
+                return jsonify({'success_message': None, 'error_message': None})
                 
-                print(f"stretch val: {stretch}")
-                
-                DEBUG_STEP = "instantiating NoGAN Model"
-                nogan = NoGANSynth(train_data,
-                                random_seed=random_seed)
-                
-                DEBUG_STEP = "fitting NoGAN Model"
-                nogan.fit(bins = bins)
-                
-                num_rows = len(train_data)
-                
-                DEBUG_STEP="generating Synthetic Data"
-                synth_data = \
-                    nogan.generate_synthetic_data(no_of_rows = num_rows,
-                                                  stretch_type = stretch_type,
-                                                  stretch = stretch)
-                
-                # Calculate ECDFs & KS Stats
-                DEBUG_STEP="calculating ECDF for Validation and Synthetic Data"
-                _, ecdf_val1, ecdf_nogan_synth = \
-                            multivariate_ecdf(val_data, 
-                                              synth_data, 
-                                              n_nodes = num_nodes,
-                                              verbose = False,
-                                              random_seed = random_seed)
-                
-                DEBUG_STEP="calculating ECDF for Validation and Training Data"
-                _, ecdf_val2, ecdf_train = \
-                            multivariate_ecdf(val_data, 
-                                              train_data, 
-                                              n_nodes = num_nodes,
-                                              verbose = False,
-                                              random_seed = random_seed)
-                
-                DEBUG_STEP="calculating KS Statistic for Validation and Synthetic Data"
-                ks_stat = ks_statistic(ecdf_val1, ecdf_nogan_synth)
-                
-                DEBUG_STEP="calculating KS Statistic for Validation and Training Data"
-                base_ks_stat = ks_statistic(ecdf_val2, ecdf_train)
-
-                # Generate a unique CSV file name
-                DEBUG_STEP="generating csv file"
-                if category_columns:
-                    DEBUG_STEP="unwrapping Category Columns"
-                    generated_data = \
-                    unwrap_category_columns(data=synth_data,
-                                            idx_to_key=idx_to_key,
-                                            cat_cols=category_columns)
-                else:
-                    generated_data = synth_data                                 
-                generated_data = generated_data[features]
-                timestamp = int(time.time())
-                csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
-                generated_data.to_csv(os.path.join(DATA_DIR, csv_filename), index=False)
-                file_location = f"/download/{csv_filename}"
-                
-                
-                success_message = f"<strong>KS Statistic</strong>: {ks_stat:0.4f}<br><strong>Base KS Statistic</strong>: {base_ks_stat:0.4f}"
-
-                # Redirect to the results page and pass the success message
-                return jsonify({'success_message': success_message,
-                                'file_location': file_location, 
-                                'error_message': None})
             else:
                 DEBUG_LOCATION = "Data Generation"
                 num_rows = int(request.form['genNumRows'])
-                print(f"Num Rows: {num_rows}")
-
-                cat_cols = \
-                    orig_data.select_dtypes(exclude=['number']).columns.tolist()
-
-                category_columns = selected_columns + cat_cols
-                print(f"Category Columns: {category_columns}")  
-                
-                if category_columns:
-                    DEBUG_STEP = "wrapping category columns"                   
-                    wrapped_data, idx_to_key, _ = \
-                            wrap_category_columns(orig_data,
-                                                  category_columns)
-                    orig_data = wrapped_data
-                   
-                DEBUG_STEP="getting Bins"
-                bins, bins_error_status = \
-                        validate_bins_stretch("bins",
-                                              request.form.get("bins"),
-                                              request.form["binsText"],
-                                              len(orig_data.columns)
-                                              )
-                if bins_error_status == "Error":
-                    raise ValueError("Bins Error")
-                
-                print(f"Bins: {bins}")
-                
-                DEBUG_STEP="getting Stretch Type"
-                stretch_type, stretch_type_error_status = \
-                        validate_bins_stretch("stretch_type",
-                                              request.form.get("stretchType"),
-                                              request.form["StretchTypeText"],
-                                              len(orig_data.columns)
-                                              )
-                if stretch_type_error_status == "Error":
-                    raise ValueError("Stretch Type Error")
-                
-                print(f"Stretch Type: {stretch_type}")
-
-                DEBUG_STEP="getting Stretch Values"
-                stretch, stretch_error_status = \
-                        validate_bins_stretch("stretch",
-                                              request.form.get("stretchVal"),
-                                              request.form["stretchValText"],
-                                              len(orig_data.columns)
-                                              )
-                if stretch_error_status == "Error":
-                    raise ValueError("Stretch Values Error")  
-                
-                print(f"stretch val: {stretch}")
-                
-                DEBUG_STEP = "instantiating NoGAN Model"
-                nogan = NoGANSynth(orig_data,
-                                random_seed=random_seed)
-                
-                DEBUG_STEP = "fitting NoGAN Model"                
-                nogan.fit(bins = bins)
-                
-                DEBUG_STEP = "generating Synthetic Data"            
-                synth_data = \
-                    nogan.generate_synthetic_data(no_of_rows = num_rows,
-                                                  stretch_type = stretch_type,
-                                                  stretch = stretch)
-
                 ks_stat_selected = request.form.get('genKSStats')
-                print(f"KS Selected Value:{ks_stat_selected}")
-                
-                if ks_stat_selected is not None:
+                if ks_stat_selected:
                     num_nodes = int(request.form['genNumNodes'])
-                    
-                    DEBUG_STEP="calculating ECDF for Original and Synthetic Data"
-                    # Calculate ECDFs & KS Stats 
-                    _, ecdf_train, ecdf_nogan_synth = \
-                                multivariate_ecdf(orig_data, 
-                                                  synth_data, 
-                                                  n_nodes = num_nodes,
-                                                  verbose = False,
-                                                  random_seed=random_seed)
-                    
-                    DEBUG_STEP="calculating KS Statistic for Original and Synthetic Data"
-                    ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)
-
-                if category_columns:
-                    DEBUG_STEP="unwrapping Category Columns"
-                    generated_data = \
-                    unwrap_category_columns(data=synth_data,
-                                            idx_to_key=idx_to_key,
-                                            cat_cols=category_columns)
                 else:
-                    generated_data = synth_data                
+                    num_nodes = ""
+                
+                task_thread = threading.Thread(target = generate_data, 
+                                               args=(orig_data, features, 
+                                                     category_columns,
+                                                     bins_checked, bins_text, stretch_type_checked,stretch_type_text, stretch_val_checked,stretch_val_text, ks_stat_selected, 
+                                                     num_nodes, num_rows,
+                                                     random_seed, ks_seed, DATA_DIR, file_name))
+                task_thread.start()
+                return jsonify({'success_message': None, 'error_message': None})
 
-                # Generate a unique CSV file name
-                generated_data = generated_data[features]
-                timestamp = int(time.time())
-                csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
-                generated_data.to_csv(os.path.join(DATA_DIR, csv_filename), index=False)
-                file_location = f"/download/{csv_filename}"
 
-                if ks_stat_selected is not None:
-                    success_message = f"Synthetic Data file {csv_filename} generated successfully.<br><strong>KS Statistic</strong>: {ks_stat:0.4f}"
-                else:
-                    success_message = f'Synthetic Data file {csv_filename} generated successfully.'                    
-
-                return jsonify({'success_message': success_message,
-                                'file_location': file_location,
-                                'error_message': None})
-
-        except Exception as e:
-            if DEBUG_STEP.lower() in ["getting bins", "getting stretch type", "getting stretch values"]:
-                error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): Please check the json format'
-
-                if DEBUG_STEP.lower() in ["getting bins"]:
-                    error_message = error_message + "." + " Also Bin values should not be negative or zero"
-                    
-                if DEBUG_STEP.lower() in ["getting stretch type"]:
-                    error_message = error_message + "." + f" Also Stretch type should have only {list(app.config['STRETCH_TYPE'])} entries"
-                    
-            else:                
-                error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
+        except Exception as e:            
+            error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
+            socketio.emit('update_message', 
+                          {'message': error_message, 'type': 'error'})
             
-            return jsonify({'success_message': None,
-                            'file_location': None,
-                            'error_message': error_message})
+            return jsonify({'success_message': None, 'error_message': None})
 
 @app.route('/download/<filename>')
 def download(filename):

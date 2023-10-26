@@ -1,5 +1,6 @@
 *old*.css
 *old*.html
+*old*.py
 __pycache__
 *.csv
 !flask/app/seed_data/*.csv
