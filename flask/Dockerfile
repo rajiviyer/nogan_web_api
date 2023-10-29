@@ -17,4 +17,5 @@ EXPOSE 5000
 ENV FLASK_APP=wsgi.py
 
 # Run Gunicorn with your Flask application
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "wsgi:app"]
+# CMD ["gunicorn", "--worker-class", "gevent", "--timeout", "120", "--log-level", "debug", "-b", "0.0.0.0:5000", "wsgi:app"]
+CMD ["gunicorn", "--worker-class", "gevent", "--timeout", "120", "-b", "0.0.0.0:5000", "wsgi:app"]

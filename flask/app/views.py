@@ -1,5 +1,5 @@
 from app import app, socketio
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, Response
 from nogan_synthesizer import NoGANSynth
 from nogan_synthesizer.preprocessing import wrap_category_columns, unwrap_category_columns
 #from genai_evaluation import multivariate_ecdf, ks_statistic
@@ -11,7 +11,6 @@ import random
 import time
 import re
 import json
-import threading
 
 def validate_bins_stretch(form_element_type : str, 
                           form_element_checked : str, 
@@ -135,9 +134,12 @@ def validate_data(orig_data, features, category_columns, bins_checked,
             if msg["result_type"] == "update_progress":
                 progress = f"Validation vs Synthetic - {msg['result']['progress']}"
                 progress_perc = msg['result']['progress_perc']
-                socketio.emit('update_progress', 
-                              {'progress': progress, 
-                               'progress_perc': progress_perc})
+                yield {"result_type": "update_progress", 
+                       "result": {"progress": progress, 
+                                  "progress_perc": progress_perc,}}
+                # socketio.emit('update_progress', 
+                #               {'progress': progress, 
+                #                'progress_perc': progress_perc})
             else:
                 ecdf_val1 = msg["result"]["ecdf_a"]
                 ecdf_nogan_synth = msg["result"]["ecdf_b"]
@@ -152,9 +154,12 @@ def validate_data(orig_data, features, category_columns, bins_checked,
             if msg["result_type"] == "update_progress":
                 progress = f"Validation vs Training - {msg['result']['progress']}"
                 progress_perc = msg["result"]["progress_perc"]
-                socketio.emit('update_progress', 
-                              {'progress': progress, 
-                               'progress_perc': progress_perc})
+                yield {"result_type": "update_progress", 
+                       "result": {"progress": progress, 
+                                  "progress_perc": progress_perc,}}
+                # socketio.emit('update_progress', 
+                #               {'progress': progress, 
+                #                'progress_perc': progress_perc})
             else:
                 ecdf_val2 = msg["result"]["ecdf_a"]
                 ecdf_train = msg["result"]["ecdf_b"]
@@ -184,8 +189,11 @@ def validate_data(orig_data, features, category_columns, bins_checked,
         
         success_message = f"<strong>KS Statistic</strong>: {ks_stat:0.4f}<br><strong>Base KS Statistic</strong>: {base_ks_stat:0.4f}<br><p><a href='{file_location}'>Download</a></p>"
 
-        socketio.emit('update_message', 
-                      {'message': success_message, 'type': 'success'})
+        yield {"result_type": "update_message", 
+               "result": {"message": success_message, 
+                          "type": "success",}}
+        # socketio.emit('update_message', 
+        #               {'message': success_message, 'type': 'success'})
     except Exception as e:
         if DEBUG_STEP.lower() in ["getting bins", "getting stretch type", "getting stretch values"]:
             error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): Please check the json format'
@@ -199,8 +207,11 @@ def validate_data(orig_data, features, category_columns, bins_checked,
         else:                
             error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
         
-        socketio.emit('update_message', 
-                      {'message': error_message, 'type': 'error'})
+        yield {"result_type": "update_message", 
+               "result": {"message": error_message, 
+                          "type": "error",}}
+        # socketio.emit('update_message', 
+        #               {'message': error_message, 'type': 'error'})
                              
 def generate_data(orig_data, features, category_columns,
                   bins_checked, bins_text, stretch_type_checked,
@@ -283,9 +294,12 @@ def generate_data(orig_data, features, category_columns,
             if msg["result_type"] == "update_progress":
                 progress = f"Original vs Synthetic - {msg['result']['progress']}"
                 progress_perc = msg["result"]["progress_perc"]
-                socketio.emit('update_progress', 
-                              {'progress': progress, 
-                               'progress_perc': progress_perc})
+                yield {"result_type": "update_progress", 
+                       "result": {"progress": progress, 
+                                  "progress_perc": progress_perc,}}
+                # socketio.emit('update_progress', 
+                #               {'progress': progress, 
+                #                'progress_perc': progress_perc})
             else:
                 ecdf_train = msg["result"]["ecdf_a"]
                 ecdf_nogan_synth = msg["result"]["ecdf_b"]            
@@ -314,7 +328,10 @@ def generate_data(orig_data, features, category_columns,
         else:
             success_message = f'Synthetic Data file {csv_filename} generated successfully.'                    
 
-        socketio.emit('update_message', {'message': success_message, 'type': 'success'})
+        yield {"result_type": "update_message", 
+               "result": {"message": success_message, 
+                          "type": "success",}}
+        # socketio.emit('update_message', {'message': success_message, 'type': 'success'})
 
     except Exception as e:
         if DEBUG_STEP.lower() in ["getting bins", "getting stretch type", "getting stretch values"]:
@@ -328,8 +345,11 @@ def generate_data(orig_data, features, category_columns,
             
         else:                
             error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
-        
-        socketio.emit('update_message', {'message': error_message, 'type': 'error'})
+
+        yield {"result_type": "update_message", 
+               "result": {"message": error_message, 
+                          "type": "error",}}        
+        # socketio.emit('update_message', {'message': error_message, 'type': 'error'})
        
 @app.route('/')
 def index():
@@ -435,10 +455,11 @@ def generate():
             error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
             return render_template('results.html', 
                                    success_message=None,
-                                   error_message=error_message)                
+                                   error_message=error_message)              
 
     elif request.method == 'POST':
         DEBUG_LOCATION = "Processing Data"
+        t = 0.01
         try:
             action_selected = request.form['action']
             selected_columns = request.form.getlist('category_columns')
@@ -481,12 +502,14 @@ def generate():
             if action_selected == 'validate':
                 num_nodes = int(request.form['valNumNodes'])
 
-                task_thread = threading.Thread(target = validate_data, 
-                                               args=(orig_data, features, 
-                                                     category_columns, bins_checked, bins_text, stretch_type_checked, stretch_type_text,stretch_val_checked, stretch_val_text, 
-                                                     num_nodes,random_seed, ks_seed, DATA_DIR, file_name))
-                task_thread.start()
-                return jsonify({'success_message': None, 'error_message': None})
+                for msg in validate_data(orig_data, features, 
+                                          category_columns, bins_checked, bins_text, stretch_type_checked, stretch_type_text,stretch_val_checked, stretch_val_text, num_nodes,random_seed, ks_seed, DATA_DIR, file_name):
+                    time.sleep(t)
+                    if msg["result_type"] == "update_progress":
+                        socketio.emit('update_progress', msg["result"])
+                    else:
+                        socketio.emit('update_message', msg["result"])
+                return Response(status=204)
                 
             else:
                 DEBUG_LOCATION = "Data Generation"
@@ -497,22 +520,26 @@ def generate():
                 else:
                     num_nodes = ""
                 
-                task_thread = threading.Thread(target = generate_data, 
-                                               args=(orig_data, features, 
-                                                     category_columns,
-                                                     bins_checked, bins_text, stretch_type_checked,stretch_type_text, stretch_val_checked,stretch_val_text, ks_stat_selected, 
-                                                     num_nodes, num_rows,
-                                                     random_seed, ks_seed, DATA_DIR, file_name))
-                task_thread.start()
-                return jsonify({'success_message': None, 'error_message': None})
+                for msg in generate_data(orig_data, features, 
+                                          category_columns,
+                                          bins_checked, bins_text, stretch_type_checked,stretch_type_text, stretch_val_checked,stretch_val_text, ks_stat_selected, 
+                                          num_nodes, num_rows,
+                                          random_seed, ks_seed, DATA_DIR, file_name):
+                    time.sleep(t)
+                    if msg["result_type"] == "update_progress":
+                        socketio.emit('update_progress', msg["result"])
+                    else:
+                        socketio.emit('update_message', msg["result"])
 
+                return Response(status=204)
 
         except Exception as e:            
             error_message = f'Error in {DEBUG_LOCATION}({DEBUG_STEP}): {str(e)}'
             socketio.emit('update_message', 
-                          {'message': error_message, 'type': 'error'})
+                          {'message': error_message, 'type': 'error',})
             
-            return jsonify({'success_message': None, 'error_message': None})
+            # return jsonify({'success_message': None, 'error_message': None})
+            return None
 
 @app.route('/download/<filename>')
 def download(filename):

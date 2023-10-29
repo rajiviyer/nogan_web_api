@@ -107,7 +107,7 @@ function generateJSON() {
   document.getElementById('stretchValText').value = JSON.stringify(jsonStretchValData, null, 2);
 }
 
-const socket = io();
+// const socket = io();
 
 // Add this code to your generate.js
 const progressDiv = document.getElementById('progress-div');
@@ -118,104 +118,71 @@ const success = document.getElementById('success');
 const errorDiv = document.getElementById('errorDiv');
 const error = document.getElementById('error');
 
-document.querySelector('form').addEventListener('submit', function(e) {
-  e.preventDefault();
-  successDiv.classList.add('hidden');
-  errorDiv.classList.add('hidden');
-  success.textContent = '';
-  error.textContent = '';
-  progressDiv.classList.remove('hidden');
-  progressStatus.innerText = "";
-
-  fetch('/generate', {
-      method: 'POST',
-      body: new FormData(e.target)
-  })
-  .then(response => response.json())
-  .then(data => {
-      if (data.type == "error" && data.message.trim() != '') {
-        progressDiv.classList.add('hidden');
-        errorDiv.classList.remove('hidden');
-        error.textContent = data.message;
-      }
-      else {
-        errorDiv.classList.add('hidden');
-      }
-  });
-});
-
-// Listen for progress updates
-socket.on('update_progress', function(data) {
-  // console.log(data)
-  progressBar.setAttribute("style", `width: ${data.progress_perc}%`);
-  progressStatus.innerText = data.progress;
-});
-
-// Listen for message updates (success or error)
-socket.on('update_message', function(data) {
-  if (data.type === 'success') {
-    console.log(`Success ${data.message}`);
-    progressDiv.classList.add('hidden');
-    successDiv.classList.remove('hidden');
-    success.innerHTML = data.message;
-  } else if (data.type === 'error') {
-    console.log(`Error ${data.message}`);    
-    progressDiv.classList.add('hidden');
-    errorDiv.classList.remove('hidden');
-    error.textContent = data.message;
-  }
-});
-
-
-// document.querySelector('form').addEventListener('submit', function(e) {
-//   e.preventDefault();
-//   document.getElementById('success').classList.add('hidden');
-//   document.getElementById('error').classList.add('hidden');
-//   document.getElementById('successDiv').classList.add('hidden');
-//   document.getElementById('errorDiv').classList.add('hidden');
-//   document.getElementById('success').textContent = '';
-//   document.getElementById('error').textContent = '';
-//   document.getElementById('progress').classList.remove('hidden');  
-//   fetch('/generate', {
-//       method: 'POST',
-//       body: new FormData(e.target)
-//   })
-//   .then(response => response.json())
-//   .then(data => {
-//       if (data.success_message && data.success_message.trim() != '') {
-//         document.getElementById('progress').classList.add('hidden');        
-//         document.getElementById('successDiv').classList.remove('hidden');
-//         document.getElementById('success').classList.remove('hidden');
-//         document.getElementById('success').innerHTML = data.success_message;
-//       }
-//       else {
-//         document.getElementById('success').classList.add('hidden');     
-//         document.getElementById('successDiv').classList.add('hidden');     
-//       }
-      
-//       if (data.error_message && data.error_message.trim() != '') {
-//         document.getElementById('progress').classList.add('hidden');         
-//         document.getElementById('errorDiv').classList.remove('hidden');
-//         document.getElementById('error').classList.remove('hidden');
-//         document.getElementById('error').textContent = data.error_message;
-//       }
-//       else {
-//         document.getElementById('error').classList.add('hidden');
-//         document.getElementById('errorDiv').classList.add('hidden');
-//       }      
-  
-//       if (data.file_location && data.file_location.trim() != '') {
-//         document.getElementById('fileLocation').classList.remove('hidden');
-//         document.getElementById('fileLocation').href = data.file_location;
-//       }
-//       else {
-//         document.getElementById('fileLocation').classList.add('hidden');      
-//       }
-//   });
-// });
-
 // Add an event listener to call the function when the page loads
 window.addEventListener("load", function() {
   generateJSON();
   displayActionElements("generate");
+
+  const socket = io();
+  let socketid = undefined;
+  // socket.connect("http://localhost:5000");
+
+  socket.on("connect", function () {
+    console.log("Connected!");
+    socketid = socket.id;
+    console.log("ID: " + socketid);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.log(`connect_error due to ${err.message}`);
+  });
+
+  document.querySelector('form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    successDiv.classList.add('hidden');
+    errorDiv.classList.add('hidden');
+    success.textContent = '';
+    error.textContent = '';
+    progressDiv.classList.remove('hidden');
+    progressStatus.innerText = "";
+  
+    fetch('/generate', {
+        method: 'POST',
+        body: new FormData(e.target)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.type == "error" && data.message.trim() != '') {
+          progressDiv.classList.add('hidden');
+          errorDiv.classList.remove('hidden');
+          error.textContent = data.message;
+        }
+        else {
+          errorDiv.classList.add('hidden');
+        }
+    });
+  });
+  
+  // Listen for progress updates
+  socket.on('update_progress', function(data) {
+    // console.log(data)
+    progressBar.setAttribute("style", `width: ${data.progress_perc}%`);
+    progressStatus.innerText = data.progress;
+  });
+  
+  // Listen for message updates (success or error)
+  socket.on('update_message', function(data) {
+    if (data.type === 'success') {
+      console.log(`Success ${data.message}`);
+      progressDiv.classList.add('hidden');
+      successDiv.classList.remove('hidden');
+      success.innerHTML = data.message;
+    } else if (data.type === 'error') {
+      console.log(`Error ${data.message}`);    
+      progressDiv.classList.add('hidden');
+      errorDiv.classList.remove('hidden');
+      error.textContent = data.message;
+    }
+  });
+  
 });
