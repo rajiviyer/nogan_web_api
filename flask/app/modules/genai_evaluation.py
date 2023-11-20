@@ -28,7 +28,8 @@ def multivariate_ecdf(data_a: pd.DataFrame,
     Returns:
         List: Returns Tuple of query_string & computed ECDFs of both Input Datasets
     """
-
+    pd.core.common.random_state(None)
+    
     if not isinstance(data_a, pd.DataFrame) or not isinstance(data_b, pd.DataFrame):
         raise TypeError("Input Datasets should be Pandas DataFrames!!")
     
@@ -38,12 +39,15 @@ def multivariate_ecdf(data_a: pd.DataFrame,
     data_a = data_a.copy()
     data_b = data_b.copy()
     
+    print(f"Data A Shape: {data_a.shape}")
+    print(f"Data B Shape: {data_b.shape}")
+    
     if re.search(r'[^a-zA-Z0-9_]', "".join(data_a.columns)):
         data_a_cols_cleaned = [re.sub(r'[^a-zA-Z0-9_]', '', col).lower() 
                                for col in data_a.columns]
         data_a.columns = data_a_cols_cleaned
         
-    if re.search(r'[^a-zA-Z0-9_]', "".join(data_a.columns)):
+    if re.search(r'[^a-zA-Z0-9_]', "".join(data_b.columns)):
         data_b_cols_cleaned = [re.sub(r'[^a-zA-Z0-9_]', '', col).lower() 
                                for col in data_b.columns]
         data_b.columns = data_b_cols_cleaned

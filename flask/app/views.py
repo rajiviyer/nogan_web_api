@@ -63,6 +63,13 @@ def validate_data(orig_data, features, category_columns, bins_checked,
         
         train_data = orig_data.sample(frac=0.5)
         val_data = orig_data.drop(train_data.index)
+        
+        # print("Train Data")
+        # print(train_data.head())
+        
+        # print("Valid Data")
+        # print(val_data.head())
+        
 
         if category_columns:
             DEBUG_STEP = "wrapping Category Columns"
@@ -146,6 +153,7 @@ def validate_data(orig_data, features, category_columns, bins_checked,
         
         DEBUG_STEP="calculating ECDF for Validation and Training Data"
 
+        # print(f"Val Data Shape: {val_data.shape}, Train Data Shape: {train_data.shape}")
         for msg in  multivariate_ecdf(val_data, 
                                       train_data, 
                                       n_nodes = num_nodes,
@@ -185,7 +193,6 @@ def validate_data(orig_data, features, category_columns, bins_checked,
         csv_filename = f"result_{file_name.split('.')[0]}_{timestamp}.csv"
         generated_data.to_csv(os.path.join(data_dir, csv_filename), index=False)
         file_location = f"/download/{csv_filename}"
-        
         
         success_message = f"<strong>KS Statistic</strong>: {ks_stat:0.4f}<br><strong>Base KS Statistic</strong>: {base_ks_stat:0.4f}<br><p><a href='{file_location}'>Download</a></p>"
 
@@ -272,7 +279,7 @@ def generate_data(orig_data, features, category_columns,
         DEBUG_STEP = "fitting NoGAN Model"                
         nogan.fit(bins = bins)
 
-        DEBUG_STEP = "generating Synthetic Data"            
+        DEBUG_STEP = "generating Synthetic Data"          
         synth_data = \
             nogan.generate_synthetic_data(no_of_rows = num_rows,
                                           stretch_type = stretch_type,
@@ -286,26 +293,26 @@ def generate_data(orig_data, features, category_columns,
             DEBUG_STEP="calculating ECDF for Original and Synthetic Data"
             # Calculate ECDFs & KS Stats 
             
-        for msg in multivariate_ecdf(orig_data, 
-                                     synth_data, 
-                                     n_nodes = num_nodes,
-                                     random_seed = ks_seed):
+            for msg in multivariate_ecdf(orig_data, 
+                                        synth_data, 
+                                        n_nodes = num_nodes,
+                                        random_seed = ks_seed):
 
-            if msg["result_type"] == "update_progress":
-                progress = f"Original vs Synthetic - {msg['result']['progress']}"
-                progress_perc = msg["result"]["progress_perc"]
-                yield {"result_type": "update_progress", 
-                       "result": {"progress": progress, 
-                                  "progress_perc": progress_perc,}}
-                # socketio.emit('update_progress', 
-                #               {'progress': progress, 
-                #                'progress_perc': progress_perc})
-            else:
-                ecdf_train = msg["result"]["ecdf_a"]
-                ecdf_nogan_synth = msg["result"]["ecdf_b"]            
-            
-        DEBUG_STEP="calculating KS Statistic for Original and Synthetic Data"
-        ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)
+                if msg["result_type"] == "update_progress":
+                    progress = f"Original vs Synthetic - {msg['result']['progress']}"
+                    progress_perc = msg["result"]["progress_perc"]
+                    yield {"result_type": "update_progress", 
+                        "result": {"progress": progress, 
+                                    "progress_perc": progress_perc,}}
+                    # socketio.emit('update_progress', 
+                    #               {'progress': progress, 
+                    #                'progress_perc': progress_perc})
+                else:
+                    ecdf_train = msg["result"]["ecdf_a"]
+                    ecdf_nogan_synth = msg["result"]["ecdf_b"]            
+                
+            DEBUG_STEP="calculating KS Statistic for Original and Synthetic Data"
+            ks_stat = ks_statistic(ecdf_train, ecdf_nogan_synth)
 
         if category_columns:
             DEBUG_STEP="unwrapping Category Columns"
@@ -326,7 +333,7 @@ def generate_data(orig_data, features, category_columns,
         if ks_stat_selected is not None:
             success_message = f"Synthetic Data file {csv_filename} generated successfully.<br><strong>KS Statistic</strong>: {ks_stat:0.4f}<br><p><a href='{file_location}'>Download</a></p>"
         else:
-            success_message = f'Synthetic Data file {csv_filename} generated successfully.'                    
+            success_message = f"Synthetic Data file {csv_filename} generated successfully.<br><p><a href='{file_location}'>Download</a></p>"               
 
         yield {"result_type": "update_message", 
                "result": {"message": success_message, 
